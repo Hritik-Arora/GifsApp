@@ -1,12 +1,14 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, SafeAreaView } from 'react-native';
+import { RootSiblingParent } from 'react-native-root-siblings';
+import Homepage from './screens/Homepage';
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <RootSiblingParent>
+      <SafeAreaView style={styles.container}>
+        <Homepage />
+      </SafeAreaView>
+    </RootSiblingParent>
   );
 }
 

@@ -1,10 +1,12 @@
 import {
-    StyleSheet, FlatList, Image, TouchableOpacity,
+    StyleSheet, FlatList, Image, TouchableOpacity, View,
 } from 'react-native';
 import { useCallback, useEffect, useState } from 'react';
 import Toast from 'react-native-root-toast';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import lodash from 'lodash';
 import { GifController } from '../../controllers/GifController';
+import { getUpdatedGifsForLandscape } from '../../utils/orientation';
 
 const GIF_SEARCH_LIMIT = 30;
 
@@ -12,10 +14,28 @@ export default function GifList(props) {
   const { searchString, forceUpdate } = props;
   const [gifs, setGifs] = useState([]);
   const [selectedGif, setSelectedGif] = useState(null);
+  const [currentOrientation, setCurrentOrientation] = useState('portrait');
+
+  useEffect(() => {
+    let subscription;
+    subscription = ScreenOrientation.addOrientationChangeListener((event) => {
+        if (
+            event.orientationInfo.orientation === ScreenOrientation.Orientation.LANDSCAPE_LEFT
+            || event.orientationInfo.orientation === ScreenOrientation.Orientation.LANDSCAPE_RIGHT
+        ) {
+            setCurrentOrientation('landscape');
+        } else {
+            setCurrentOrientation('portrait');
+        }
+    });
+    // Cleanup function to remove the listener attached above
+    return () => {
+        ScreenOrientation.removeOrientationChangeListener(subscription);
+    };
+  }, []);
 
   const getSearchedGifAndSetState = useCallback(lodash.debounce((stringToSearch, limit) => {
     GifController.getSearchedGif(stringToSearch, limit).then((data) => {
-        console.log('received data from searched string', stringToSearch)
         setGifs(data);
     }).catch(() => {
         Toast.show('Please check your internet connection', {
@@ -66,8 +86,9 @@ export default function GifList(props) {
     }
   }, [forceUpdate, getSearchedGifAndSetState, searchString, getGifsAndSetState]);
 
-  const renderGifItem = useCallback(({ item }) => (
-    <TouchableOpacity
+  const renderSingleGifItem = useCallback((item, halfWidth = false) => {
+    return (
+        <TouchableOpacity
         onPress={() => {
             if (selectedGif === item.url) {
                 setSelectedGif(null);
@@ -76,21 +97,34 @@ export default function GifList(props) {
             }
         }}
         style={styles.gifItem}
-    >
-        <Image
-            source={{
-                uri: selectedGif === item.url ? item.url : item.staticImage.url,
-            }}
-            style={{
-                width: '100%',
-                aspectRatio: +item.staticImage.width / +item.staticImage.height,
-            }}
-        />
-    </TouchableOpacity>
-  ), [selectedGif]);
+        >
+            <Image
+                source={{
+                    uri: selectedGif === item.url ? item.url : item.staticImage.url,
+                }}
+                style={{
+                    width: halfWidth ? '50%' : '100%',
+                    aspectRatio: +item.staticImage.width / +item.staticImage.height,
+                }}
+            />
+        </TouchableOpacity>
+    );
+  }, [selectedGif]);
+
+  const renderGifItem = useCallback(({ item }) => {
+    if (currentOrientation === 'portrait') {
+        return renderSingleGifItem(item);
+    }
+    return (
+        <View style={styles.landscapeGifContainer}>
+            {renderSingleGifItem(item[0], true)}
+            {item[1] ? renderSingleGifItem(item[1], true) : null}
+        </View>
+    );
+    }, [renderSingleGifItem, currentOrientation]);
 
   return <FlatList
-            data={gifs}
+            data={currentOrientation === 'portrait' ? gifs : getUpdatedGifsForLandscape(gifs)}
             onEndReached={loadMoreGifs}
             renderItem={renderGifItem}
             // keyExtractor={(item) => item.url}
@@ -113,4 +147,9 @@ const styles = StyleSheet.create({
     padding: 10,
     width: '100%',
   },
+  landscapeGifContainer: {
+    flexDirection: 'row',
+    borderBottomWidth: 2,
+    borderBottomColor: 'black',
+  }
 });
